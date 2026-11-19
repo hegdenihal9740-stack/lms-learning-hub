@@ -133,8 +133,9 @@ const titles = {
   about: ['About Institute', 'Learn more about your institute, its learning environment, and how to get in touch.'],
 }
 const roadmapAccents = ['#1769e0', '#7156d9', '#e77b46', '#159c87', '#d85383', '#287ed1', '#8252d6', '#159b9b', '#d88125', '#4b5fc8']
-// Road order on the course map: true shows Module 01 first (top) so scrolling down moves forward.
-const ROADMAP_TOP_FIRST = true
+// Road order on the course map: false shows Module 01 at the bottom so the student climbs
+// from Module 01 up to Module 10 (top) as the page scrolls down.
+const ROADMAP_TOP_FIRST = false
 const moduleJourneyAccents = ['#22c979', '#21b8c5', '#3589e8', '#79c943', '#20bd91', '#18a69b', '#418ce0', '#24b982', '#8b70df', '#38bd70']
 
 function cx(...values) { return values.filter(Boolean).join(' ') }
@@ -952,6 +953,8 @@ function Courses({ data, setPage }) {
     let lastScrollAt = Number.NEGATIVE_INFINITY
     let previousY = window.scrollY
     let direction = 1
+    // +1: student walks down the path (Module 01 at top); -1: climbs up from Module 01 at the bottom.
+    const travelSign = ROADMAP_TOP_FIRST ? 1 : -1
 
     const measure = () => {
       const isMobile = window.matchMedia?.('(max-width: 640px)').matches
@@ -1004,7 +1007,7 @@ function Courses({ data, setPage }) {
         pathLength,
         viewBoxHeight,
         trackRect,
-        destinationDistance: Math.max(0, destinationDistance - 180),
+        destinationDistance: Math.max(0, Math.min(pathLength, destinationDistance - 180 * travelSign)),
         scrollStart,
         scrollEnd,
       }
@@ -1024,7 +1027,9 @@ function Courses({ data, setPage }) {
       const progress = prefersReducedMotion
         ? 1
         : Math.max(0, Math.min(1, (window.scrollY - scrollStart) / (scrollEnd - scrollStart)))
-      const startDistance = Math.min(180, destinationDistance)
+      const startDistance = travelSign > 0
+        ? Math.min(180, destinationDistance)
+        : Math.max(destinationDistance, pathLength - 180)
       const distance = startDistance + progress * (destinationDistance - startDistance)
       const point = path.getPointAtLength(distance)
       const ahead = path.getPointAtLength(Math.min(pathLength, distance + 2))
@@ -1042,14 +1047,14 @@ function Courses({ data, setPage }) {
       const normalX = -directionY / directionLength
       const normalY = directionX / directionLength
       const laneWidth = 66 * Math.hypot((trackRect.width / 1000) * normalX, (trackRect.height / viewBoxHeight) * normalY)
-      const angle = getTravelHeading(directionX, directionY, direction)
+      const angle = getTravelHeading(directionX, directionY, direction * travelSign)
       const mapRect = map.getBoundingClientRect()
 
       runner.style.width = `${Math.max(96, Math.min(160, laneWidth * 2.2))}px`
       runner.style.left = `${trackRect.left - mapRect.left + position.x}px`
       runner.style.top = `${trackRect.top - mapRect.top + position.y}px`
       runner.style.setProperty('--roadmap-runner-angle', `${angle}rad`)
-      runner.style.setProperty('--student-lean', `${Math.max(-7, Math.min(7, directionX / directionLength * direction * 7))}deg`)
+      runner.style.setProperty('--student-lean', `${Math.max(-7, Math.min(7, directionX / directionLength * direction * travelSign * 7))}deg`)
       runner.style.opacity = '1'
       const shouldRun = !prefersReducedMotion && shouldRunnerMove(progress, lastScrollAt, performance.now(), direction)
       setRunnerMoving((isMoving) => (isMoving === shouldRun ? isMoving : shouldRun))
@@ -1069,7 +1074,7 @@ function Courses({ data, setPage }) {
     const handleScroll = () => {
       direction = getScrollDirection(previousY, window.scrollY, direction)
       previousY = window.scrollY
-      setRunnerDirection(direction)
+      setRunnerDirection(direction * travelSign)
       lastScrollAt = performance.now()
       if (stopTimer) window.clearTimeout(stopTimer)
       stopTimer = window.setTimeout(() => {
@@ -1354,6 +1359,18 @@ function Courses({ data, setPage }) {
         </div>
       </div>
     )}
+    <section className={cx('roadmap-finish', done === mods.length && 'is-unlocked')}>
+      <div className="roadmap-finish-icon" aria-hidden="true"><GraduationCap size={30}/></div>
+      <div className="roadmap-finish-copy">
+        <span className="roadmap-hero-pill">Finish line</span>
+        <h3>{done === mods.length ? 'You did it — graduation unlocked!' : 'Graduation & Master’s certificate'}</h3>
+        <p>{done === mods.length ? 'Every module is complete. Request your certificate from the Certificate page.' : `Complete all ${mods.length} modules to earn your certificate. ${mods.length - done} to go — keep going!`}</p>
+      </div>
+      <div className="roadmap-finish-progress">
+        <span>{done} of {mods.length} modules completed</span>
+        <div className="roadmap-module-bar"><i style={{ width: `${mods.length ? (done / mods.length) * 100 : 0}%` }}/></div>
+      </div>
+    </section>
     <div
       ref={roadmapMapRef}
       className="roadmap-game-map roadmap-journey-map roadmap-module-map"
@@ -1418,18 +1435,6 @@ function Courses({ data, setPage }) {
               </Suspense>
               </div>
     </div>
-    <section className={cx('roadmap-finish', done === mods.length && 'is-unlocked')}>
-      <div className="roadmap-finish-icon" aria-hidden="true"><GraduationCap size={30}/></div>
-      <div className="roadmap-finish-copy">
-        <span className="roadmap-hero-pill">Finish line</span>
-        <h3>{done === mods.length ? 'You did it — graduation unlocked!' : 'Graduation & Master’s certificate'}</h3>
-        <p>{done === mods.length ? 'Every module is complete. Request your certificate from the Certificate page.' : `Complete all ${mods.length} modules to earn your certificate. ${mods.length - done} to go — keep going!`}</p>
-      </div>
-      <div className="roadmap-finish-progress">
-        <span>{done} of {mods.length} modules completed</span>
-        <div className="roadmap-module-bar"><i style={{ width: `${mods.length ? (done / mods.length) * 100 : 0}%` }}/></div>
-      </div>
-    </section>
   </div>
   )
 }
