@@ -1,0 +1,79 @@
+[
+ {
+  "capability": "code",
+  "source": "github hegdenihal9740-stack/lms19 (src/campusly, routes, tests)",
+  "outcome": "migrate",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "assets",
+  "source": "4 asset pointers from other Lovable projects",
+  "outcome": "re-uploaded to this project",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "schema",
+  "source": "student_feedback table + RLS",
+  "outcome": "migrate",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "records",
+  "source": "student_feedback rows",
+  "outcome": "migrate",
+  "status": "not_needed",
+  "next_action": "Source roadmap states no Cloud auth users existed, so no feedback rows could exist; import if user supplies an export"
+ },
+ {
+  "capability": "auth identities",
+  "source": "Lovable Cloud auth (email/password, Google), login-only",
+  "outcome": "recreated: email auth + Google enabled, signup disabled",
+  "status": "done",
+  "next_action": "Source had no auth users; staff add students under Users"
+ },
+ {
+  "capability": "authorization",
+  "source": "RLS own-rows on student_feedback",
+  "outcome": "migrate",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "local device data",
+  "source": "profile, photo, batches, demo data in browser storage",
+  "outcome": "unchanged (browser-only by design)",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "storage/files",
+  "source": "none in Cloud",
+  "outcome": "n/a",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "public endpoints/webhooks/schedules",
+  "source": "none",
+  "outcome": "n/a",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "secrets",
+  "source": ".env only held Cloud connection values",
+  "outcome": "replaced by new Cloud connection",
+  "status": "done",
+  "next_action": "none"
+ },
+ {
+  "capability": "verification",
+  "source": "tests + preview",
+  "outcome": "79/79 tests pass, build OK, sign-in page and demo portal load with no errors",
+  "status": "done_partial",
+  "next_action": "Feedback save with a real student account still unverified: app has no Cloud sign-in for registration numbers yet (pre-existing roadmap item)"
+ }
+]
