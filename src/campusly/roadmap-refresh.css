@@ -18,12 +18,17 @@
   --rm-gradient-cta:linear-gradient(120deg,var(--rm-orange),var(--rm-pink));
 }
 
-/* Softer, calmer page backdrop so the road stands out */
+/* Bright "sunrise sky" page backdrop: vivid colour blooms over a soft blue base */
 body:has(.roadmap-page:not(.module-session-page)){
+  background-color:oklch(0.94 0.04 255)!important;
   background-image:
-    radial-gradient(ellipse at 15% 0%,oklch(0.93 0.05 290 / 0.9),transparent 55%),
-    linear-gradient(oklch(0.96 0.02 280 / 0.8),oklch(0.95 0.025 270 / 0.72)),
-    url("../assets/course-roadmap-background.png") !important;
+    radial-gradient(ellipse 55% 40% at 8% 4%,oklch(0.82 0.13 330 / 0.75),transparent 70%),
+    radial-gradient(ellipse 50% 38% at 96% 10%,oklch(0.86 0.12 70 / 0.8),transparent 70%),
+    radial-gradient(ellipse 60% 45% at 92% 62%,oklch(0.8 0.12 250 / 0.7),transparent 70%),
+    radial-gradient(ellipse 55% 45% at 4% 78%,oklch(0.85 0.12 175 / 0.7),transparent 70%),
+    linear-gradient(180deg,oklch(0.95 0.035 300) 0%,oklch(0.94 0.045 250) 50%,oklch(0.95 0.04 190) 100%)!important;
+  background-size:cover!important;
+  background-attachment:fixed!important;
 }
 
 /* ---------- Hero ---------- */
@@ -129,13 +134,48 @@ body:has(.roadmap-page:not(.module-session-page)){
 }
 
 /* ---------- Map board ---------- */
+/* Sky that brightens toward the finish: golden dawn near Module 10, violet mid-way, fresh mint at the start. */
 .roadmap-page .roadmap-module-map{
-  border:1px solid oklch(1 0 0 / 0.7);
+  border:1px solid oklch(1 0 0 / 0.8);
   background:
-    radial-gradient(ellipse at 50% 0%,oklch(1 0 0 / 0.55),transparent 60%),
-    linear-gradient(180deg,oklch(1 0 0 / 0.38),oklch(1 0 0 / 0.18));
-  box-shadow:0 30px 60px -40px oklch(0.25 0.08 270 / 0.55),inset 0 1px oklch(1 0 0 / 0.9);
+    radial-gradient(ellipse 70% 14% at 50% 0%,oklch(0.9 0.14 80 / 0.85),transparent 75%),
+    radial-gradient(ellipse 45% 18% at 6% 22%,oklch(0.8 0.15 350 / 0.45),transparent 72%),
+    radial-gradient(ellipse 45% 18% at 96% 40%,oklch(0.78 0.14 290 / 0.5),transparent 72%),
+    radial-gradient(ellipse 45% 18% at 4% 62%,oklch(0.8 0.12 240 / 0.5),transparent 72%),
+    radial-gradient(ellipse 50% 18% at 94% 84%,oklch(0.84 0.13 170 / 0.55),transparent 72%),
+    linear-gradient(180deg,
+      oklch(0.95 0.07 85) 0%,
+      oklch(0.92 0.07 20) 18%,
+      oklch(0.89 0.08 310) 40%,
+      oklch(0.89 0.07 260) 62%,
+      oklch(0.91 0.07 215) 82%,
+      oklch(0.93 0.08 170) 100%);
+  box-shadow:0 34px 70px -40px oklch(0.35 0.14 280 / 0.6),inset 0 1px oklch(1 0 0 / 0.95),inset 0 0 0 1px oklch(1 0 0 / 0.35);
 }
+/* Fine dotted texture + soft diagonal light beams */
+.roadmap-page .roadmap-module-map::before{
+  background-image:
+    radial-gradient(circle,oklch(1 0 0 / 0.9) 1px,transparent 1.8px),
+    radial-gradient(circle,oklch(0.7 0.14 290 / 0.35) 1px,transparent 1.8px),
+    repeating-linear-gradient(125deg,transparent 0 120px,oklch(1 0 0 / 0.22) 121px 160px,transparent 161px 300px);
+  background-position:0 0,31px 47px,0 0;
+  background-size:62px 62px,94px 94px,100% 100%;
+  opacity:.75;
+}
+/* Slowly drifting colour glows behind the road */
+.roadmap-page .roadmap-module-map::after{
+  inset:0;height:auto;
+  background:
+    radial-gradient(circle at 20% 30%,oklch(0.85 0.15 65 / 0.35),transparent 18%),
+    radial-gradient(circle at 80% 55%,oklch(0.75 0.17 330 / 0.25),transparent 20%),
+    radial-gradient(circle at 25% 85%,oklch(0.8 0.14 200 / 0.3),transparent 20%);
+  background-size:100% 100%;
+  opacity:1;
+  animation:rm-drift 18s ease-in-out infinite alternate;
+}
+@keyframes rm-drift{0%{transform:translate3d(0,0,0)}50%{transform:translate3d(3%,-2%,0)}100%{transform:translate3d(-3%,2%,0)}}
+/* Brighter sparkles */
+.roadmap-page .roadmap-sparkles span{background:oklch(1 0 0);box-shadow:0 0 10px 2px oklch(0.9 0.12 80 / 0.9)}
 
 /* Completed stretch of road */
 .roadmap-road-done-glow,.roadmap-road-done{fill:none;stroke-linecap:round;stroke-linejoin:round;animation:rm-road-draw 1.6s cubic-bezier(.3,.7,.2,1) .3s both}
@@ -269,7 +309,7 @@ body:has(.roadmap-page:not(.module-session-page)){
 }
 @media(prefers-reduced-motion:reduce){
   .roadmap-page .roadmap-hero,.roadmap-hero-glow i,.roadmap-ring-fill,.roadmap-module-bar i,.roadmap-road-done,.roadmap-road-done-glow,
-  .roadmap-here-beacon,.roadmap-milestone.is-current i,.roadmap-state-dot,.roadmap-page .journey-current .roadmap-module-platform::after{animation:none}
+  .roadmap-here-beacon,.roadmap-milestone.is-current i,.roadmap-page .roadmap-module-map::after,.roadmap-state-dot,.roadmap-page .journey-current .roadmap-module-platform::after{animation:none}
 }
 
 /* The portal resets button gradients globally; restore the roadmap's call-to-action gradients. */

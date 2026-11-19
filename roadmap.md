@@ -14,3 +14,5 @@
 - [ ] Make the app say "Skill AI" only — no "Campusly" wording anywhere visible
 - [x] Dashboard design + animations
 - [x] Redesign the course roadmap page (hero with progress, module cards, completed-road glow, finish line; Module 1 at top)
+- [ ] Brighter, livelier course roadmap background (page + map board)
+- [ ] Student walks from the current module up to Module 10 when scrolling up; page slides to the current module on open

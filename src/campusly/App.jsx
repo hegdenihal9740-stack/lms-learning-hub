@@ -950,11 +950,14 @@ function Courses({ data, setPage }) {
     let metrics = null
     let frame = 0
     let stopTimer = 0
+    let introTimer = 0
+    let introScrolling = false
     let lastScrollAt = Number.NEGATIVE_INFINITY
     let previousY = window.scrollY
     let direction = 1
-    // +1: student walks down the path (Module 01 at top); -1: climbs up from Module 01 at the bottom.
-    const travelSign = ROADMAP_TOP_FIRST ? 1 : -1
+    // The student stands a little below each module platform, on the road leading up to it.
+    const STAND_OFFSET = 180
+    const finalModuleId = mods.reduce((max, c) => Math.max(max, c.id), 0)
 
     const measure = () => {
       const isMobile = window.matchMedia?.('(max-width: 640px)').matches
@@ -962,14 +965,14 @@ function Courses({ data, setPage }) {
         ? '.roadmap-module-track-mobile'
         : '.roadmap-module-track-desktop')
       const path = track?.querySelector('.roadmap-module-motion-path')
-      const target = map.querySelector(`[data-module-id="${currentCourse.id}"] .roadmap-module-platform`)
-      if (!track || !path || !target || typeof path.getTotalLength !== 'function' || typeof path.getPointAtLength !== 'function') {
+      const currentTarget = map.querySelector(`[data-module-id="${currentCourse.id}"] .roadmap-module-platform`)
+      const finalTarget = map.querySelector(`[data-module-id="${finalModuleId}"] .roadmap-module-platform`)
+      if (!track || !path || !currentTarget || !finalTarget || typeof path.getTotalLength !== 'function' || typeof path.getPointAtLength !== 'function') {
         metrics = null
         return
       }
 
       const trackRect = track.getBoundingClientRect()
-      const targetRect = target.getBoundingClientRect()
       if (!trackRect.width || !trackRect.height) {
         metrics = null
         return
@@ -977,40 +980,51 @@ function Courses({ data, setPage }) {
 
       const pathLength = path.getTotalLength()
       const viewBoxHeight = mods.length * 340
-      const targetX = targetRect.left + targetRect.width / 2 - trackRect.left
-      const targetY = targetRect.top + targetRect.height / 2 - trackRect.top
-      let destinationDistance = 0
-      let closestDistance = Infinity
       const sampleStep = Math.max(pathLength / 1200, 1)
-
-      for (let distance = 0; distance <= pathLength; distance += sampleStep) {
-        const point = path.getPointAtLength(distance)
-        const dx = (point.x / 1000) * trackRect.width - targetX
-        const dy = (point.y / viewBoxHeight) * trackRect.height - targetY
-        const squaredDistance = dx * dx + dy * dy
-        if (squaredDistance < closestDistance) {
-          closestDistance = squaredDistance
-          destinationDistance = distance
+      const closestDistanceTo = (target) => {
+        const rect = target.getBoundingClientRect()
+        const targetX = rect.left + rect.width / 2 - trackRect.left
+        const targetY = rect.top + rect.height / 2 - trackRect.top
+        let best = 0
+        let bestSq = Infinity
+        for (let distance = 0; distance <= pathLength; distance += sampleStep) {
+          const point = path.getPointAtLength(distance)
+          const dx = (point.x / 1000) * trackRect.width - targetX
+          const dy = (point.y / viewBoxHeight) * trackRect.height - targetY
+          const sq = dx * dx + dy * dy
+          if (sq < bestSq) {
+            bestSq = sq
+            best = distance
+          }
         }
+        return best
       }
-
-      const mapRect = map.getBoundingClientRect()
-      const currentButtonRect = target.getBoundingClientRect()
-      const scrollStart = Math.max(0, mapRect.top + window.scrollY - window.innerHeight * 0.65)
-      const scrollEnd = Math.max(
-        scrollStart + 1,
-        currentButtonRect.top + window.scrollY + currentButtonRect.height / 2 - window.innerHeight * 0.55)
+      // Scroll position at which a platform sits just below the middle of the screen.
+      const scrollFor = (target) => {
+        const rect = target.getBoundingClientRect()
+        return Math.max(0, rect.top + window.scrollY + rect.height / 2 - window.innerHeight * 0.55)
+      }
 
       metrics = {
         track,
         path,
         pathLength,
         viewBoxHeight,
-        trackRect,
-        destinationDistance: Math.max(0, Math.min(pathLength, destinationDistance - 180 * travelSign)),
-        scrollStart,
-        scrollEnd,
+        // Road is drawn top (Module 10) to bottom (Module 01): larger distance = lower on screen.
+        startDistance: Math.min(pathLength, closestDistanceTo(currentTarget) + STAND_OFFSET),
+        endDistance: Math.min(pathLength, closestDistanceTo(finalTarget) + STAND_OFFSET),
+        scrollAtCurrent: scrollFor(currentTarget),
+        scrollAtFinal: scrollFor(finalTarget),
       }
+    }
+
+    // 0 = standing at the current module, 1 = arrived at the final module.
+    // Scrolling UP the page walks the student up the road towards Module 10.
+    const getProgress = () => {
+      if (!metrics || introScrolling) return 0
+      const span = metrics.scrollAtCurrent - metrics.scrollAtFinal
+      if (span < 1) return 0
+      return Math.max(0, Math.min(1, (metrics.scrollAtCurrent - window.scrollY) / span))
     }
 
     const update = () => {
@@ -1021,16 +1035,11 @@ function Courses({ data, setPage }) {
         return
       }
 
-      const { track, path, pathLength, viewBoxHeight, destinationDistance, scrollStart, scrollEnd } = metrics
+      const { track, path, pathLength, viewBoxHeight, startDistance, endDistance } = metrics
       const trackRect = track.getBoundingClientRect()
       const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      const progress = prefersReducedMotion
-        ? 1
-        : Math.max(0, Math.min(1, (window.scrollY - scrollStart) / (scrollEnd - scrollStart)))
-      const startDistance = travelSign > 0
-        ? Math.min(180, destinationDistance)
-        : Math.max(destinationDistance, pathLength - 180)
-      const distance = startDistance + progress * (destinationDistance - startDistance)
+      const progress = getProgress()
+      const distance = startDistance + progress * (endDistance - startDistance)
       const point = path.getPointAtLength(distance)
       const ahead = path.getPointAtLength(Math.min(pathLength, distance + 2))
       const behind = path.getPointAtLength(Math.max(0, distance - 2))
@@ -1047,16 +1056,18 @@ function Courses({ data, setPage }) {
       const normalX = -directionY / directionLength
       const normalY = directionX / directionLength
       const laneWidth = 66 * Math.hypot((trackRect.width / 1000) * normalX, (trackRect.height / viewBoxHeight) * normalY)
-      const angle = getTravelHeading(directionX, directionY, direction * travelSign)
+      // Scrolling down walks the student back down the road (facing the viewer); scrolling up walks away up the road.
+      const angle = getTravelHeading(directionX, directionY, direction)
       const mapRect = map.getBoundingClientRect()
 
       runner.style.width = `${Math.max(96, Math.min(160, laneWidth * 2.2))}px`
       runner.style.left = `${trackRect.left - mapRect.left + position.x}px`
       runner.style.top = `${trackRect.top - mapRect.top + position.y}px`
       runner.style.setProperty('--roadmap-runner-angle', `${angle}rad`)
-      runner.style.setProperty('--student-lean', `${Math.max(-7, Math.min(7, directionX / directionLength * direction * travelSign * 7))}deg`)
+      runner.style.setProperty('--student-lean', `${Math.max(-7, Math.min(7, directionX / directionLength * direction * 7))}deg`)
       runner.style.opacity = '1'
-      const shouldRun = !prefersReducedMotion && shouldRunnerMove(progress, lastScrollAt, performance.now(), direction)
+      // Progress grows while scrolling up, so the "forward" direction for the motion check is the opposite of scroll direction.
+      const shouldRun = !prefersReducedMotion && !introScrolling && shouldRunnerMove(progress, lastScrollAt, performance.now(), -direction)
       setRunnerMoving((isMoving) => (isMoving === shouldRun ? isMoving : shouldRun))
     }
 
@@ -1074,7 +1085,7 @@ function Courses({ data, setPage }) {
     const handleScroll = () => {
       direction = getScrollDirection(previousY, window.scrollY, direction)
       previousY = window.scrollY
-      setRunnerDirection(direction * travelSign)
+      if (!introScrolling) setRunnerDirection(direction)
       lastScrollAt = performance.now()
       if (stopTimer) window.clearTimeout(stopTimer)
       stopTimer = window.setTimeout(() => {
@@ -1092,9 +1103,26 @@ function Courses({ data, setPage }) {
     window.addEventListener('resize', handleResize)
     update()
 
+    // On opening the roadmap, glide down to the current module so the student is ready to climb.
+    const startIntro = window.setTimeout(() => {
+      measure()
+      if (!metrics || window.scrollY > 40 || metrics.scrollAtCurrent - window.scrollY < 40) return
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      introScrolling = true
+      setRunnerDirection(-1)
+      window.scrollTo({ top: metrics.scrollAtCurrent, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+      introTimer = window.setTimeout(() => {
+        introScrolling = false
+        introTimer = 0
+        scheduleUpdate()
+      }, prefersReducedMotion ? 50 : 1400)
+    }, 450)
+
     return () => {
       if (frame) window.cancelAnimationFrame(frame)
       if (stopTimer) window.clearTimeout(stopTimer)
+      if (introTimer) window.clearTimeout(introTimer)
+      window.clearTimeout(startIntro)
       resizeObserver?.disconnect()
       window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', handleResize)
