@@ -13,3 +13,4 @@
 - [ ] Make the logo background transparent — show only the logo, no white box behind it (sign-in, sidebar chip, top bar, profile cover, leave letter)
 - [ ] Make the app say "Skill AI" only — no "Campusly" wording anywhere visible
 - [x] Dashboard design + animations
+- [x] Redesign the course roadmap page (hero with progress, module cards, completed-road glow, finish line; Module 1 at top)

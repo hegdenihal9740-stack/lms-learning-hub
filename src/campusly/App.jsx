@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import './campusly.css'
+import './roadmap-refresh.css'
 import feeReceiptLogo from '@/assets/skillai-fee-logo.png'
 import NeuralBackground from './NeuralBackground.jsx'
 import {
@@ -132,6 +133,8 @@ const titles = {
   about: ['About Institute', 'Learn more about your institute, its learning environment, and how to get in touch.'],
 }
 const roadmapAccents = ['#1769e0', '#7156d9', '#e77b46', '#159c87', '#d85383', '#287ed1', '#8252d6', '#159b9b', '#d88125', '#4b5fc8']
+// Road order on the course map: true shows Module 01 first (top) so scrolling down moves forward.
+const ROADMAP_TOP_FIRST = true
 const moduleJourneyAccents = ['#22c979', '#21b8c5', '#3589e8', '#79c943', '#20bd91', '#18a69b', '#418ce0', '#24b982', '#8b70df', '#38bd70']
 
 function cx(...values) { return values.filter(Boolean).join(' ') }
@@ -656,11 +659,12 @@ function ModuleArtifact({ moduleId }) {
   )
 }
 
-function ModuleJourneyItem({ course, index, onOpen }) {
+function ModuleJourneyItem({ course, index, isNext = false, onOpen }) {
   const itemRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
   const title = course.title.replace(/^Module \d+: /, '')
   const stateClass = `journey-${course.state.toLowerCase()}`
+  const stateLabel = course.state === 'Current' ? 'In progress' : isNext ? 'Up next' : course.state
 
   useEffect(() => {
     const node = itemRef.current
@@ -684,7 +688,7 @@ function ModuleJourneyItem({ course, index, onOpen }) {
     <li
     ref={itemRef}
     data-module-id={course.id}
-    className={cx('roadmap-module-item', index % 2 === 1 && 'journey-copy-right', stateClass, isVisible && 'journey-in-view')}
+    className={cx('roadmap-module-item', index % 2 === 1 && 'journey-copy-right', stateClass, isNext && 'journey-next', isVisible && 'journey-in-view')}
     style={{
       '--module-reveal-delay': `${Math.min(index, 9) * 65}ms`,
       '--module-accent': moduleJourneyAccents[index % moduleJourneyAccents.length],
@@ -701,6 +705,9 @@ function ModuleJourneyItem({ course, index, onOpen }) {
       <span className="roadmap-module-platform-tier" aria-hidden="true"/>
       <span className="roadmap-module-platform-top" aria-hidden="true"/>
       <ModuleArtifact moduleId={course.id}/>
+      {course.state === 'Current' && (
+        <span className="roadmap-here-beacon" aria-hidden="true"><MapPin size={12} strokeWidth={2.6}/> You are here</span>
+      )}
       <span className="roadmap-module-platform-status" aria-hidden="true">
         {course.state === 'Completed' ? <Check size={12} strokeWidth={3}/> : course.state === 'Available' ? <BookOpen size={12}/> : <span/>}
       </span>
@@ -712,12 +719,25 @@ function ModuleJourneyItem({ course, index, onOpen }) {
       )}
     </svg>
     <div className="roadmap-module-info">
-      <div className="roadmap-module-info-top">
-        <span className="roadmap-module-badge">Module {String(course.id).padStart(2, '0')}</span>
-        <span className="roadmap-module-state">{course.state}</span>
+      <div className="roadmap-module-card">
+        <div className="roadmap-module-info-top">
+          <span className="roadmap-module-badge">Module {String(course.id).padStart(2, '0')}</span>
+          <span className="roadmap-module-state">
+            {course.state === 'Completed' ? <CheckCircle2 size={13}/> : course.state === 'Current' ? <i className="roadmap-state-dot"/> : <Sparkles size={12}/>}
+            {stateLabel}
+          </span>
+        </div>
+        <h3 className="roadmap-module-title">{title}</h3>
+        <div className="roadmap-module-meta">
+          <span><BookOpen size={13}/> {course.completed}/{course.lessons} sessions</span>
+          <strong>{course.progress}%</strong>
+        </div>
+        <div className="roadmap-module-bar" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, course.progress))}%` }}/></div>
+        <button type="button" className="roadmap-module-open" onClick={onOpen}>
+          {course.state === 'Current' ? 'Continue learning' : course.state === 'Completed' ? 'Review sessions' : 'Preview sessions'}
+          <ArrowRight size={14}/>
+        </button>
       </div>
-      <h3 className="roadmap-module-title">{title}</h3>
-      <span className="roadmap-module-underline"/>
     </div>
   </li>
   )
@@ -802,6 +822,22 @@ function Courses({ data, setPage }) {
     }
   })
   const done = mods.filter((c) => c.state === 'Completed').length
+  const roadMods = ROADMAP_TOP_FIRST ? mods : mods.slice().reverse()
+  const sessionsDone = mods.reduce((sum, c) => sum + (c.completed || 0), 0)
+  const sessionsTotal = mods.reduce((sum, c) => sum + (c.lessons || 0), 0)
+  const overallPct = sessionsTotal ? Math.round((sessionsDone / sessionsTotal) * 100) : 0
+  const nextModuleId = currentCourse ? mods.find((c) => c.id > currentCourse.id && c.state !== 'Completed')?.id : undefined
+  const currentRoadIndex = roadMods.findIndex((c) => c.id === currentCourse?.id)
+  const roadSpan = Math.max(1, roadMods.length - 1)
+  const roadDoneDash = (() => {
+    if (currentRoadIndex < 0) return done === mods.length ? '1000 0' : '0 1000'
+    const at = Math.round((currentRoadIndex / roadSpan) * 1000)
+    return ROADMAP_TOP_FIRST ? `${at} 1000` : `0 ${at} ${1000 - at} 1000`
+  })()
+  const scrollToModule = (id) => {
+    const node = roadmapMapRef.current?.querySelector(`[data-module-id="${id}"]`)
+    node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
   const selected = mods.find((c) => c.id === openModule)
   const selectedRoadmap = selected ? MODULE_ROADMAP[selected.id] : null
   const sessionTrackPath = selected ? buildSessionTrackPath(selected.sessions.length) : ''
@@ -1264,6 +1300,51 @@ function Courses({ data, setPage }) {
 
   return (
     <div className="page-stack roadmap-page">
+    <section className="roadmap-hero" aria-labelledby="roadmap-hero-title">
+      <div className="roadmap-hero-glow" aria-hidden="true"><i/><i/><i/></div>
+      <div className="roadmap-hero-copy">
+        <span className="roadmap-hero-pill"><Sparkles size={13}/> Master's programme · Industry-embedded</span>
+        <h1 id="roadmap-hero-title">Your learning <span>roadmap</span></h1>
+        <p className="roadmap-hero-program">{USER.program || 'Your programme'}</p>
+        <p className="roadmap-hero-sub">12 months · {mods.length} modules · Foundation to advanced</p>
+        <div className="roadmap-hero-actions">
+          {currentCourse && (
+            <button type="button" className="roadmap-hero-cta" onClick={() => setOpenModule(currentCourse.id)}>
+              Continue Module {String(currentCourse.id).padStart(2, '0')} <ArrowRight size={16}/>
+            </button>
+          )}
+          <button type="button" className="roadmap-hero-ghost" onClick={() => setPage('materials')}><BookMarked size={16}/> Study materials</button>
+        </div>
+      </div>
+      <div className="roadmap-hero-stats">
+        <div className="roadmap-ring" role="img" aria-label={`${overallPct}% of sessions complete`}>
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="roadmap-ring-gradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="var(--rm-orange)"/><stop offset="1" stopColor="var(--rm-pink)"/>
+              </linearGradient>
+            </defs>
+            <circle className="roadmap-ring-track" cx="60" cy="60" r="50"/>
+            <circle className="roadmap-ring-fill" cx="60" cy="60" r="50" pathLength="100" strokeDasharray={`${overallPct} 100`}/>
+          </svg>
+          <div><strong>{overallPct}%</strong><span>complete</span></div>
+        </div>
+        <ul className="roadmap-hero-metrics">
+          <li><strong>{done}<small>/{mods.length}</small></strong><span>Modules done</span></li>
+          <li><strong>{sessionsDone}<small>/{sessionsTotal}</small></strong><span>Sessions done</span></li>
+          <li><strong>{mods.length - done}</strong><span>Modules to go</span></li>
+        </ul>
+      </div>
+      <ol className="roadmap-milestones" aria-label="Jump to a module" style={{ '--rm-count': mods.length }}>
+        {mods.map((course) => (
+          <li key={course.id} className={cx('roadmap-milestone', `is-${course.state.toLowerCase()}`)}>
+            <button type="button" onClick={() => scrollToModule(course.id)} aria-label={`Show Module ${course.id} on the map (${course.state})`}>
+              <i>{course.state === 'Completed' ? <Check size={12} strokeWidth={3}/> : String(course.id).padStart(2, '0')}</i>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
     {currentCourse?.progress === 100 && currentMissingTests.length > 0 && (
       <div className="notice-card">
         <LockKeyhole size={19}/>
@@ -1301,6 +1382,8 @@ function Courses({ data, setPage }) {
         <path d={buildModuleTrackPath(mods.length)} fill="none" stroke="#45a9ff" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" opacity=".28" filter="url(#roadmap-track-glow)"/>
         <path d={buildModuleTrackPath(mods.length)} fill="none" stroke="#45a9ff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
         <path d={buildModuleTrackPath(mods.length)} fill="none" stroke="#c1e3ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".8"/>
+        <path className="roadmap-road-done-glow" d={buildModuleTrackPath(mods.length)} pathLength="1000" strokeDasharray={roadDoneDash}/>
+        <path className="roadmap-road-done" d={buildModuleTrackPath(mods.length)} pathLength="1000" strokeDasharray={roadDoneDash}/>
         <path className="roadmap-road-flow" d={buildModuleTrackPath(mods.length)} fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" pathLength="1000"/>
       </svg>
       <svg className="roadmap-module-track roadmap-module-track-mobile" viewBox={`0 0 1000 ${mods.length * 340}`} preserveAspectRatio="none" aria-hidden="true">
@@ -1314,15 +1397,18 @@ function Courses({ data, setPage }) {
         <path className="roadmap-module-motion-path" d={buildModuleTrackPath(mods.length, 200, 800)} fill="none" stroke="#172a45" strokeWidth="66" strokeLinecap="round" strokeLinejoin="round"/>
         <path d={buildModuleTrackPath(mods.length, 200, 800)} fill="none" stroke="#45a9ff" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" opacity=".3" filter="url(#roadmap-mobile-track-glow)"/>
         <path d={buildModuleTrackPath(mods.length, 200, 800)} fill="none" stroke="#45a9ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        <path className="roadmap-road-done-glow" d={buildModuleTrackPath(mods.length, 200, 800)} pathLength="1000" strokeDasharray={roadDoneDash}/>
+        <path className="roadmap-road-done" d={buildModuleTrackPath(mods.length, 200, 800)} pathLength="1000" strokeDasharray={roadDoneDash}/>
         <path className="roadmap-road-flow" d={buildModuleTrackPath(mods.length, 200, 800)} fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" pathLength="1000"/>
       </svg>
       <div className="roadmap-sparkles" aria-hidden="true">{Array.from({ length: 18 }, (_, i) => <span key={i} style={{ '--spark-x': `${(i * 53) % 100}%`, '--spark-y': `${(i * 37) % 100}%`, '--spark-delay': `${(i % 6) * -1.3}s` }}/>)}</div>
       <ol className="roadmap-module-list" aria-label="Course modules">
-        {mods.slice().reverse().map((course, index) => (
+        {roadMods.map((course, index) => (
               <ModuleJourneyItem
           key={course.id}
           course={course}
           index={index}
+          isNext={course.id === nextModuleId}
           onOpen={() => setOpenModule(course.id)}
         />))}
       </ol>
@@ -1332,25 +1418,18 @@ function Courses({ data, setPage }) {
               </Suspense>
               </div>
     </div>
-    <SectionHeading
-      eyebrow="MASTER'S PROGRAMME · INDUSTRY-EMBEDDED"
-      title="Learning Roadmap"
-      subtitle="Explore your programme one module at a time."
-      action={<button className="secondary-button" onClick={() => setPage('materials')}><BookMarked size={16}/> Study materials
-          </button>}
-    />
-    <div className="roadmap-programme panel">
-      <div className="roadmap-programme-copy">
-        <span className="eyebrow">YOUR PROGRAMME</span>
-        <h3>{USER.program || 'Your programme'}</h3>
-        <p>12 months · {mods.length} modules · Foundation to advanced</p>
+    <section className={cx('roadmap-finish', done === mods.length && 'is-unlocked')}>
+      <div className="roadmap-finish-icon" aria-hidden="true"><GraduationCap size={30}/></div>
+      <div className="roadmap-finish-copy">
+        <span className="roadmap-hero-pill">Finish line</span>
+        <h3>{done === mods.length ? 'You did it — graduation unlocked!' : 'Graduation & Master’s certificate'}</h3>
+        <p>{done === mods.length ? 'Every module is complete. Request your certificate from the Certificate page.' : `Complete all ${mods.length} modules to earn your certificate. ${mods.length - done} to go — keep going!`}</p>
       </div>
-      <div className="roadmap-programme-progress">
-        <span>{done} of {mods.length} modules completed
-          </span>
-        <ProgressBar value={mods.length ? (done / mods.length) * 100 : 0}/>
+      <div className="roadmap-finish-progress">
+        <span>{done} of {mods.length} modules completed</span>
+        <div className="roadmap-module-bar"><i style={{ width: `${mods.length ? (done / mods.length) * 100 : 0}%` }}/></div>
       </div>
-    </div>
+    </section>
   </div>
   )
 }
